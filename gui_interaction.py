@@ -11,6 +11,8 @@ import pygame
 from gui_map import axial_to_pixel, hex_corners
 from gui_units import create_demo, find_truck_at
 from board.game_engine import GameEngine
+from board.pathfinding import find_path
+from board import rules
 
 SCREEN_W = 900
 SCREEN_H = 520
@@ -72,12 +74,24 @@ def demo():
                         if hx and selected_truck:
                             # find owner of selected truck
                             owner = None
+                            truck_pos = None
                             for pid, p in players.items():
                                 if selected_truck in p.trucks:
                                     owner = pid
+                                    truck_pos = p.trucks[selected_truck].position
                                     break
-                            if owner:
-                                engine.queue_move(owner, selected_truck, [hx])
+                            if owner and truck_pos:
+                                # validate path cost before queuing
+                                start = tuple(map(int, truck_pos.split(",")))
+                                res = find_path(board_map, start, hx)
+                                if res is None:
+                                    print(f"No path found from {start} to {hx}; move not queued")
+                                else:
+                                    cost = res["cost"]
+                                    if cost > rules.MP_PER_TURN:
+                                        print(f"Path cost {cost} exceeds MP ({rules.MP_PER_TURN}); move not queued")
+                                    else:
+                                        engine.queue_move(owner, selected_truck, [hx])
             elif ev.type == pygame.MOUSEMOTION:
                 hover_hex = hex_at_pos(board_map, ev.pos)
 
@@ -95,6 +109,33 @@ def demo():
             hx, hy = hover_hex
             cx, cy = axial_to_pixel(hx, hy)
             pygame.draw.circle(screen, (200, 200, 100), (cx, cy), 6)
+
+            # if a truck is selected, show path preview and cost
+            if selected_truck:
+                # find truck owner and position
+                owner = None
+                truck_pos = None
+                for pid, p in players.items():
+                    if selected_truck in p.trucks:
+                        owner = pid
+                        truck_pos = p.trucks[selected_truck].position
+                        break
+                if truck_pos:
+                    sq = tuple(map(int, truck_pos.split(",")))
+                    res = find_path(board_map, sq, (hx, hy))
+                    if res:
+                        path = res["path"]
+                        cost = res["cost"]
+                        # draw path
+                        for node in path:
+                            nx, ny = axial_to_pixel(node[0], node[1])
+                            pygame.draw.circle(screen, (160, 220, 160), (nx, ny), 6)
+                        # color cost based on MP available
+                        mp = rules.MP_PER_TURN
+                        color = (100, 220, 100) if cost <= mp else (220, 100, 100)
+                        font = pygame.font.SysFont(None, 18)
+                        txt = font.render(f"cost: {cost}", True, color)
+                        screen.blit(txt, (cx + 12, cy - 8))
 
         # draw trucks
         from gui_units import draw_trucks
