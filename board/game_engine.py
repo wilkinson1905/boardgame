@@ -30,6 +30,7 @@ class GameEngine:
         self.movement_queue.clear()
 
     def process_attack_phase(self):
+        results = []
         for action in list(self.attack_queue):
             attacker_id = action["attacker"]
             defender_id = action["defender"]
@@ -49,7 +50,21 @@ class GameEngine:
             if defp.soldiers < 0:
                 defp.soldiers = 0
 
+            # collect a summary for UI
+            results.append({
+                "attacker": attacker_id,
+                "defender": defender_id,
+                "participating": res.get("participating", 0),
+                "ammo_used": res.get("ammo_used", 0),
+                "success": res.get("success", False),
+                "damage": res.get("damage", 0),
+                "attacker_loss": res.get("attacker_loss", 0),
+                "prob": res.get("prob", 0.0),
+                "roll": res.get("roll", None),
+            })
+
         self.attack_queue.clear()
+        return results
 
     def process_food_phase(self):
         # Each player consumes food equal to soldiers. If food insufficient, apply penalty.
@@ -74,6 +89,9 @@ class GameEngine:
         return None
 
     def run_round(self):
+        # Run phases in order. Return attack summaries and optional victor for UI.
         self.process_movement_phase()
-        self.process_attack_phase()
+        attack_results = self.process_attack_phase()
         self.process_food_phase()
+        victor = self.check_victory()
+        return {"attack_results": attack_results, "victor": victor}

@@ -40,6 +40,51 @@ def draw_queued_moves(surface, board_map, engine):
         y += 18
 
 
+def animate_moves(screen, clock, board_map, players, engine):
+    """Simple animation: step each queued movement one hex at a time at fixed interval."""
+    if not engine.movement_queue:
+        return
+
+    # copy queue to process
+    queue = list(engine.movement_queue)
+    step_delay = 120  # ms per step
+
+    for player_id, truck_id, path in queue:
+        # animate along path
+        if not path:
+            continue
+        # locate truck object
+        player = players[player_id]
+        truck = player.trucks.get(truck_id)
+        if truck is None:
+            continue
+
+        for node in path:
+            # move truck visually to node
+            truck.position = f"{node[0]},{node[1]}"
+            # redraw
+            screen.fill(BG)
+            # draw map
+            for (q, r), h in board_map._hexes.items():
+                cx, cy = axial_to_pixel(q, r)
+                corners = hex_corners(cx, cy)
+                color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
+                pygame.draw.polygon(screen, color, corners)
+                pygame.draw.polygon(screen, (30, 30, 40), corners, 2)
+
+            # draw trucks
+            from gui_units import draw_trucks
+            draw_trucks(screen, players, selected_id=None)
+
+            pygame.display.flip()
+            # wait small delay
+            pygame.time.delay(step_delay)
+
+    # after animating, clear movement queue as moves will be processed by engine
+    # (do not actually call engine.process_movement here)
+    return
+
+
 def demo():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
@@ -52,6 +97,8 @@ def demo():
     selected_truck = None
     hover_hex = None
 
+    popup = None
+    popup_until = 0
     running = True
     while running:
         for ev in pygame.event.get():
@@ -61,8 +108,22 @@ def demo():
                 if ev.key == pygame.K_ESCAPE:
                     running = False
                 if ev.key == pygame.K_r:
-                    # run one round
-                    engine.run_round()
+                    # run one round with simple animation and show attack results
+                    # animate queued moves first
+                    animate_moves(screen, clock, board_map, players, engine)
+                    res = engine.run_round()
+                    # display attack results briefly
+                    ars = res.get("attack_results", [])
+                    if ars:
+                        # create a combined popup text
+                        lines = []
+                        for a in ars:
+                            lines.append(f"{a['attacker']}->{a['defender']}: dmg={a['damage']} lost={a['attacker_loss']}")
+                        popup = " | ".join(lines)
+                        popup_until = pygame.time.get_ticks() + 2500
+                    else:
+                        popup = "No attacks"
+                        popup_until = pygame.time.get_ticks() + 1200
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 if ev.button == 1:
                     # click: first try truck
@@ -143,6 +204,14 @@ def demo():
 
         # draw queued moves list
         draw_queued_moves(screen, board_map, engine)
+
+        # popup display
+        if popup and pygame.time.get_ticks() < popup_until:
+            font = pygame.font.SysFont(None, 22)
+            surf = font.render(popup, True, (255, 220, 120))
+            screen.blit(surf, (200, 8))
+        elif popup and pygame.time.get_ticks() >= popup_until:
+            popup = None
 
         # instructions
         font = pygame.font.SysFont(None, 18)
