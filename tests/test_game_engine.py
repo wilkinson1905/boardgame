@@ -26,5 +26,5 @@ def test_round_flow_and_victory():
     engine.run_round()
     # after round: p1's truck moved, p2 may have lost soldiers
     assert players["p1"].trucks["t1"].position == "1,0"
-    # food was consumed
-    assert players["p1"].food == 2  # 5 - soldiers(5) => 0, but attack may change; allow non-strict check
+    # food was consumed (5 food - 5 soldiers = 0)
+    assert players["p1"].food == 0
