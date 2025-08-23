@@ -96,6 +96,12 @@ def demo():
 
     selected_truck = None
     hover_hex = None
+    # phase state: 'A_move' -> 'B_move' -> 'attack'
+    phase = 'A_move'
+    # map phase to player id for movement phases
+    phase_player = {'A_move': 'p1', 'B_move': 'p2'}
+    # start of round: clear moved trackers
+    engine.moved_this_round.clear()
 
     popup = None
     popup_until = 0
@@ -126,11 +132,51 @@ def demo():
                         popup_until = pygame.time.get_ticks() + 1200
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 if ev.button == 1:
+                    # check if End Phase button clicked (top-right)
+                    mx, my = ev.pos
+                    btn_rect = pygame.Rect(SCREEN_W - 140, 8, 128, 28)
+                    if btn_rect.collidepoint(mx, my):
+                        # End phase pressed
+                        if phase == 'A_move':
+                            phase = 'B_move'
+                        elif phase == 'B_move':
+                            # proceed to attack phase: resolve attacks and food
+                            ars = engine.process_attack_phase()
+                            engine.process_food_phase()
+                            # show attack summary popup
+                            if ars:
+                                lines = []
+                                for a in ars:
+                                    lines.append(f"{a['attacker']}->{a['defender']}: dmg={a['damage']} lost={a['attacker_loss']}")
+                                popup = " | ".join(lines)
+                                popup_until = pygame.time.get_ticks() + 2500
+                            else:
+                                popup = "No attacks"
+                                popup_until = pygame.time.get_ticks() + 1200
+                            # start next round
+                            engine.moved_this_round.clear()
+                            phase = 'A_move'
+                        else:
+                            # other phases fallback
+                            phase = 'A_move'
+                        # clear selection on phase change
+                        selected_truck = None
+                        continue
+
                     # click: first try truck
                     tid = find_truck_at(players, ev.pos)
                     if tid:
-                        # prevent selecting a truck that already moved this round
-                        if tid in engine.moved_this_round:
+                        # determine owner
+                        owner = None
+                        for pid, p in players.items():
+                            if tid in p.trucks:
+                                owner = pid
+                                break
+                        # allow selection only during movement phases for current player
+                        if phase in phase_player and owner != phase_player[phase]:
+                            # not this player's movement phase
+                            print(f"Not {owner}'s movement phase; cannot select {tid}")
+                        elif tid in engine.moved_this_round:
                             print(f"Truck {tid} already moved this round; cannot select")
                         else:
                             selected_truck = tid
@@ -221,6 +267,18 @@ def demo():
             screen.blit(surf, (200, 8))
         elif popup and pygame.time.get_ticks() >= popup_until:
             popup = None
+
+        # draw phase label and End Phase button
+        font = pygame.font.SysFont(None, 20)
+        phase_text = f"Phase: {phase}"
+        p_surf = font.render(phase_text, True, (220, 220, 220))
+        screen.blit(p_surf, (SCREEN_W - 260, 12))
+
+        # End Phase button
+        btn_rect = pygame.Rect(SCREEN_W - 140, 8, 128, 28)
+        pygame.draw.rect(screen, (100, 100, 140), btn_rect)
+        btn_txt = font.render("End Phase", True, (240, 240, 240))
+        screen.blit(btn_txt, (SCREEN_W - 120, 12))
 
         # instructions
         font = pygame.font.SysFont(None, 18)
