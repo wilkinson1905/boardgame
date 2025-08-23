@@ -11,6 +11,8 @@ class GameEngine:
         self.movement_queue: List[Tuple[str, str, List[Tuple[int, int]]]] = []  # (player_id, truck_id, path)
         self.attack_queue: List[Dict] = []  # dicts with attacker_id, defender_id, attacking_soldiers
         self.rng = rng
+        # track trucks that have already moved this round (prevent multiple moves)
+        self.moved_this_round = set()
 
     # ----- queueing API -----
     def queue_move(self, player_id: str, truck_id: str, path: List[Tuple[int, int]]):
@@ -21,7 +23,14 @@ class GameEngine:
         truck = player.trucks.get(truck_id)
         if truck is None:
             return False
-        return movement.move_truck(self.map, truck, path)
+        # prevent moving the same truck more than once in the same round
+        if truck_id in self.moved_this_round:
+            return False
+
+        ok = movement.move_truck(self.map, truck, path)
+        if ok:
+            self.moved_this_round.add(truck_id)
+        return ok
 
     def queue_attack(self, attacker_id: str, defender_id: str, attacking_soldiers: int):
         self.attack_queue.append({"attacker": attacker_id, "defender": defender_id, "attacking": attacking_soldiers})
@@ -97,6 +106,8 @@ class GameEngine:
 
     def run_round(self):
         # Run phases in order. Return attack summaries and optional victor for UI.
+        # starting a new round: reset moved tracker so trucks can move this round
+        self.moved_this_round.clear()
         self.process_movement_phase()
         attack_results = self.process_attack_phase()
         self.process_food_phase()

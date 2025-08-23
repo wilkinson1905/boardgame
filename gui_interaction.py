@@ -129,7 +129,11 @@ def demo():
                     # click: first try truck
                     tid = find_truck_at(players, ev.pos)
                     if tid:
-                        selected_truck = tid
+                        # prevent selecting a truck that already moved this round
+                        if tid in engine.moved_this_round:
+                            print(f"Truck {tid} already moved this round; cannot select")
+                        else:
+                            selected_truck = tid
                     else:
                         hx = hex_at_pos(board_map, ev.pos)
                         if hx and selected_truck:
@@ -152,7 +156,12 @@ def demo():
                                     if cost > rules.MP_PER_TURN:
                                         print(f"Path cost {cost} exceeds MP ({rules.MP_PER_TURN}); move not queued")
                                     else:
-                                        engine.queue_move(owner, selected_truck, [hx])
+                                        ok = engine.queue_move(owner, selected_truck, [hx])
+                                        if ok:
+                                            # move succeeded — clear selection so user can't reissue on same truck
+                                            selected_truck = None
+                                        else:
+                                            print(f"Move failed for {selected_truck}")
             elif ev.type == pygame.MOUSEMOTION:
                 hover_hex = hex_at_pos(board_map, ev.pos)
 
