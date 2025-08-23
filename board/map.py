@@ -10,6 +10,9 @@ class Hex:
     terrain: str = "plain"
     road_upgraded: bool = False
     occupants: List[str] = field(default_factory=list)
+    # engineering/upgrade state
+    upgrade_in_progress: bool = False
+    upgrade_turns_left: int = 0
 
 
 class Map:
