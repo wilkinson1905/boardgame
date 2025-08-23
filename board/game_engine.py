@@ -14,7 +14,14 @@ class GameEngine:
 
     # ----- queueing API -----
     def queue_move(self, player_id: str, truck_id: str, path: List[Tuple[int, int]]):
-        self.movement_queue.append((player_id, truck_id, path))
+        # Immediately attempt to move the truck so the UI reflects the move at once.
+        player = self.players.get(player_id)
+        if player is None:
+            return False
+        truck = player.trucks.get(truck_id)
+        if truck is None:
+            return False
+        return movement.move_truck(self.map, truck, path)
 
     def queue_attack(self, attacker_id: str, defender_id: str, attacking_soldiers: int):
         self.attack_queue.append({"attacker": attacker_id, "defender": defender_id, "attacking": attacking_soldiers})
