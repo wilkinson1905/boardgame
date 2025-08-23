@@ -45,6 +45,10 @@ def move_truck(board_map: Map, truck: Truck, path: List[Tuple[int, int]]) -> boo
     # perform move: set position to last hex and deduct MP
     if path:
         last_q, last_r = path[-1]
+        h = board_map.get_hex(last_q, last_r)
+        if h and 'warehouse' in getattr(h, 'occupants', []):
+            # trucks may not enter warehouse hexes
+            return False
         truck.position = f"{last_q},{last_r}"
     truck.remaining_mp -= total
     return True

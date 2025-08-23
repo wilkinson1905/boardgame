@@ -9,7 +9,7 @@ Controls:
 """
 import pygame
 from gui_map import axial_to_pixel, hex_corners
-from gui_units import create_demo, find_truck_at
+from gui_units import create_demo, find_truck_at, OWNER_COLORS
 from board.game_engine import GameEngine
 from board.pathfinding import find_path
 from board import rules
@@ -113,7 +113,7 @@ def demo():
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
                     running = False
-                if ev.key == pygame.K_r:
+                elif ev.key == pygame.K_r:
                     # run one round with simple animation and show attack results
                     # animate queued moves first
                     animate_moves(screen, clock, board_map, players, engine)
@@ -130,6 +130,53 @@ def demo():
                     else:
                         popup = "No attacks"
                         popup_until = pygame.time.get_ticks() + 1200
+                # quick load/unload shortcuts when a truck is selected
+                elif ev.key == pygame.K_l and selected_truck:
+                    # load 1 soldier from player into truck
+                    # find owner
+                    owner = None
+                    for pid, p in players.items():
+                        if selected_truck in p.trucks:
+                            owner = p
+                            break
+                    # only allow loading from warehouse if truck is adjacent to one of owner's warehouses
+                    if owner and owner.warehouses:
+                        # find any warehouse adjacent to truck
+                        t = owner.trucks[selected_truck]
+                        tq, tr = map(int, t.position.split(","))
+                        adj = False
+                        for wid, wh in owner.warehouses.items():
+                            wq, wr = map(int, wh.position.split(","))
+                            # check adjacency via map.neighbors
+                            hex_obj = board_map.get_hex(wq, wr)
+                            if hex_obj:
+                                neighs = board_map.neighbors(wq, wr)
+                                for n in neighs:
+                                    if (n.q, n.r) == (tq, tr):
+                                        adj = True
+                                        break
+                            if adj:
+                                break
+                        if adj and sum(t.cargo.values()) < t.capacity and owner.warehouses:
+                            # transfer 1 soldier from warehouse stock if available
+                            # pick first warehouse with stock
+                            for wid, wh in owner.warehouses.items():
+                                if wh.stock.get("soldiers", 0) > 0:
+                                    wh.stock["soldiers"] -= 1
+                                    t.cargo["soldiers"] += 1
+                                    break
+                elif ev.key == pygame.K_u and selected_truck:
+                    # unload 1 soldier from truck to player pool
+                    owner = None
+                    for pid, p in players.items():
+                        if selected_truck in p.trucks:
+                            owner = p
+                            break
+                    if owner:
+                        t = owner.trucks[selected_truck]
+                        if t.cargo.get("soldiers", 0) > 0:
+                            t.cargo["soldiers"] -= 1
+                            owner.soldiers += 1
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 if ev.button == 1:
                     # check if End Phase button clicked (top-right)
@@ -220,6 +267,23 @@ def demo():
             pygame.draw.polygon(screen, color, corners)
             pygame.draw.polygon(screen, (30, 30, 40), corners, 2)
 
+        # draw warehouses (marker) on top of map but below units
+        for pid, p in players.items():
+            for wid, wh in p.warehouses.items():
+                try:
+                    wq, wr = map(int, wh.position.split(","))
+                except Exception:
+                    continue
+                wx, wy = axial_to_pixel(wq, wr)
+                col = OWNER_COLORS.get(pid, (180, 180, 180))
+                # small house marker
+                pygame.draw.rect(screen, col, (wx - 10, wy - 10, 20, 20))
+                inner = (min(255, col[0] + 40), min(255, col[1] + 40), min(255, col[2] + 40))
+                pygame.draw.rect(screen, inner, (wx - 6, wy - 6, 12, 12))
+                font = pygame.font.SysFont(None, 14)
+                txt = font.render("WH", True, (0, 0, 0))
+                screen.blit(txt, (wx - txt.get_width() // 2, wy - txt.get_height() // 2))
+
         # highlight hover hex
         if hover_hex:
             hx, hy = hover_hex
@@ -256,6 +320,57 @@ def demo():
         # draw trucks
         from gui_units import draw_trucks
         draw_trucks(screen, players, selected_id=selected_truck)
+
+        # Right-side detail panel for selected unit (G7)
+        panel_x = SCREEN_W - 220
+        panel_y = 60
+        panel_w = 208
+        panel_h = 200
+        pygame.draw.rect(screen, (22, 22, 30), (panel_x, panel_y, panel_w, panel_h))
+        pygame.draw.rect(screen, (60, 60, 70), (panel_x, panel_y, panel_w, panel_h), 2)
+        font = pygame.font.SysFont(None, 18)
+        if selected_truck:
+            # find owner and truck
+            owner = None
+            truck_obj = None
+            for pid, p in players.items():
+                if selected_truck in p.trucks:
+                    owner = p
+                    truck_obj = p.trucks[selected_truck]
+                    break
+            if truck_obj:
+                lines = [f"Truck: {truck_obj.id}", f"Owner: {owner.id}", f"Pos: {truck_obj.position}", f"MP: {truck_obj.remaining_mp}", "cargo:"]
+                y = panel_y + 8
+                for ln in lines:
+                    surf = font.render(ln, True, (220, 220, 220))
+                    screen.blit(surf, (panel_x + 8, y))
+                    y += 20
+                # cargo lines
+                for k, v in truck_obj.cargo.items():
+                    surf = font.render(f"{k}: {v}", True, (200, 200, 200))
+                    screen.blit(surf, (panel_x + 12, y))
+                    y += 18
+                # show warehouses stocks
+                y += 6
+                ws = []
+                for wid, wh in owner.warehouses.items():
+                    ws.append(f"WH {wid} @ {wh.position}")
+                    for kk, vv in wh.stock.items():
+                        ws.append(f"  {kk}: {vv}")
+                for ln in ws:
+                    surf = font.render(ln, True, (170, 170, 170))
+                    screen.blit(surf, (panel_x + 8, y))
+                    y += 16
+                # instructions for load/unload
+                y += 6
+                instr = ["L: load 1 soldier", "U: unload 1 soldier"]
+                for ln in instr:
+                    surf = font.render(ln, True, (180, 180, 180))
+                    screen.blit(surf, (panel_x + 8, y))
+                    y += 18
+        else:
+            surf = font.render("No unit selected", True, (180, 180, 180))
+            screen.blit(surf, (panel_x + 8, panel_y + 8))
 
         # draw queued moves list
         draw_queued_moves(screen, board_map, engine)

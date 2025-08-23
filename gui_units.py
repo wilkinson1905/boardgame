@@ -12,7 +12,7 @@ except Exception:
 
 from gui_map import axial_to_pixel, hex_corners
 from board.map import Map
-from board.entities import PlayerState, Truck
+from board.entities import PlayerState, Truck, Warehouse
 from board import rules
 
 
@@ -31,16 +31,74 @@ def create_demo():
     p1 = PlayerState(id="p1", soldiers=rules.INITIAL_SOLDIERS, ammo=rules.INITIAL_AMMO, food=rules.INITIAL_FOOD)
     p2 = PlayerState(id="p2", soldiers=rules.INITIAL_SOLDIERS, ammo=rules.INITIAL_AMMO, food=rules.INITIAL_FOOD)
 
+    # create warehouses at map edges dynamically based on map extents
+    # determine q-range of the map
+    qs = [q for (q, r) in m._hexes.keys()]
+    rs = [r for (q, r) in m._hexes.keys()]
+    min_q = min(qs)
+    max_q = max(qs)
+    # pick representative r for the edge column (closest to 0)
+    def pick_edge_r(q_edge):
+        candidates = [h for (q, r), h in m._hexes.items() if q == q_edge]
+        if not candidates:
+            return 0
+        return min(candidates, key=lambda h: abs(h.r - 0)).r
+
+    w1_q = min_q
+    w1_r = pick_edge_r(w1_q)
+    w2_q = max_q
+    w2_r = pick_edge_r(w2_q)
+
+    w1 = Warehouse(id="p1_wh", owner_id="p1", position=f"{w1_q},{w1_r}", stock={"soldiers": rules.INITIAL_SOLDIERS, "ammo": rules.INITIAL_AMMO, "food": rules.INITIAL_FOOD})
+    w2 = Warehouse(id="p2_wh", owner_id="p2", position=f"{w2_q},{w2_r}", stock={"soldiers": rules.INITIAL_SOLDIERS, "ammo": rules.INITIAL_AMMO, "food": rules.INITIAL_FOOD})
+    p1.warehouses[w1.id] = w1
+    p2.warehouses[w2.id] = w2
+
+    # mark warehouse hex occupants for map-based checks
+    h1 = m.get_hex(w1_q, w1_r)
+    if h1:
+        h1.occupants.append('warehouse')
+    h2 = m.get_hex(w2_q, w2_r)
+    if h2:
+        h2.occupants.append('warehouse')
+
+    # helper: choose spawn neighbor toward map center
+    center_q = (min_q + max_q) / 2
+    center_r = sum(rs) / len(rs) if rs else 0
+    def spawn_neighbor_toward_center(h):
+        neighs = m.neighbors(h.q, h.r)
+        if not neighs:
+            return None
+        # pick neighbor whose (q,r) is closest to map center
+        best = min(neighs, key=lambda nh: (nh.q - center_q) ** 2 + (nh.r - center_r) ** 2)
+        return best
+
     # create trucks with some cargo values for display
-    for i in range(rules.TRUCK_COUNT):
-        t1 = Truck(id=f"p1_t{i}", owner_id="p1", position=f"{-6 + i},{0}", capacity=rules.TRUCK_CAPACITY, remaining_mp=rules.MP_PER_TURN)
-        t1.cargo["soldiers"] = 2 + i
-        t1.cargo["ammo"] = 3
-        t2 = Truck(id=f"p2_t{i}", owner_id="p2", position=f"{6 - i},{0}", capacity=rules.TRUCK_CAPACITY, remaining_mp=rules.MP_PER_TURN)
-        t2.cargo["soldiers"] = 1 + i
-        t2.cargo["ammo"] = 2
-        p1.trucks[t1.id] = t1
-        p2.trucks[t2.id] = t2
+    # for each warehouse pick the neighbor toward center and spawn trucks along that inward direction
+    for owner_id, wh in [("p1", w1), ("p2", w2)]:
+        wq, wr = map(int, wh.position.split(","))
+        wh_hex = m.get_hex(wq, wr)
+        spawn = spawn_neighbor_toward_center(wh_hex) if wh_hex else None
+        if spawn:
+            dx = spawn.q - wq
+            dr = spawn.r - wr
+        else:
+            # fallback: one hex inward along q axis
+            dx, dr = (1 if owner_id == "p1" else -1), 0
+
+        for i in range(rules.TRUCK_COUNT):
+            pos_q = spawn.q + i * dx if spawn else (wq + dx + i * dx)
+            pos_r = spawn.r + i * dr if spawn else (wr + dr + i * dr)
+            if owner_id == "p1":
+                t = Truck(id=f"p1_t{i}", owner_id="p1", position=f"{pos_q},{pos_r}", capacity=rules.TRUCK_CAPACITY, remaining_mp=rules.MP_PER_TURN)
+                t.cargo["soldiers"] = 2 + i
+                t.cargo["ammo"] = 3
+                p1.trucks[t.id] = t
+            else:
+                t = Truck(id=f"p2_t{i}", owner_id="p2", position=f"{pos_q},{pos_r}", capacity=rules.TRUCK_CAPACITY, remaining_mp=rules.MP_PER_TURN)
+                t.cargo["soldiers"] = 1 + i
+                t.cargo["ammo"] = 2
+                p2.trucks[t.id] = t
 
     return m, {"p1": p1, "p2": p2}
 
