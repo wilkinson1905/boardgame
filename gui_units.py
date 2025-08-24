@@ -29,7 +29,8 @@ def create_demo():
     half_rows = rows // 2
     for row in range(rows):
         for col in range(cols):
-            q = col - half_cols - (row // 2)
+            # adjust conversion so grid center maps to (0,0)
+            q = col - half_cols - ((row - half_rows) // 2)
             r = row - half_rows
             m.add_hex(q, r)
 
@@ -43,8 +44,8 @@ def create_demo():
     min_r = min(rs)
     max_r = max(rs)
 
-    top_r = min_r + 1
-    bot_r = max_r - 1
+    top_r = min_r
+    bot_r = max_r
 
     def pick_center_q(row):
         vals = sorted([q for (q, r) in m._hexes.keys() if r == row])
@@ -177,7 +178,10 @@ def demo():
         for (q, r), h in board_map._hexes.items():
             cx, cy = axial_to_pixel(q, r)
             corners = hex_corners(cx, cy)
-            color = (150, 150, 150) if h.road_upgraded else (80, 80, 90)
+            if (q, r) == (0, 0):
+                color = (60, 110, 200)
+            else:
+                color = (150, 150, 150) if h.road_upgraded else (80, 80, 90)
             pygame.draw.polygon(screen, color, corners)
             pygame.draw.polygon(screen, (40, 40, 50), corners, 2)
 

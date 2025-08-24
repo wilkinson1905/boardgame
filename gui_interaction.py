@@ -70,7 +70,10 @@ def animate_moves(screen, clock, board_map, players, engine):
             for (q, r), h in board_map._hexes.items():
                 cx, cy = axial_to_pixel(q, r, origin=MAP_ORIGIN)
                 corners = hex_corners(cx, cy)
-                color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
+                if (q, r) == (0, 0):
+                    color = (60, 110, 200)
+                else:
+                    color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
                 pygame.draw.polygon(screen, color, corners)
                 pygame.draw.polygon(screen, (30, 30, 40), corners, 2)
 
@@ -321,11 +324,15 @@ def demo():
                 hover_hex = hex_at_pos(board_map, ev.pos)
 
         screen.fill(BG)
-        # draw map
+        # draw map (highlight central hex as frontline)
         for (q, r), h in board_map._hexes.items():
             cx, cy = axial_to_pixel(q, r, origin=MAP_ORIGIN)
             corners = hex_corners(cx, cy)
-            color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
+            # central frontline tile
+            if (q, r) == (0, 0):
+                color = (60, 110, 200)  # blue frontline
+            else:
+                color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
             pygame.draw.polygon(screen, color, corners)
             pygame.draw.polygon(screen, (30, 30, 40), corners, 2)
 
