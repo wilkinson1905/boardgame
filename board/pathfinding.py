@@ -6,6 +6,9 @@ from . import rules
 
 Coord = Tuple[int, int]
 
+# frontline coordinate (central tile)
+FRONTLINE: Coord = (0, 0)
+
 
 def hex_distance(a: Coord, b: Coord) -> int:
     aq, ar = a
@@ -42,6 +45,12 @@ def find_path(board_map: Map, start: Coord, goal: Coord) -> Optional[Dict]:
             break
 
         for n in neighbors(current):
+            # do not allow entering the frontline tile
+            if n == FRONTLINE:
+                continue
+            # skip tiles outside the defined map
+            if board_map.get_hex(n[0], n[1]) is None:
+                continue
             new_cost = cost_so_far[current] + cost_for_tile(board_map, n)
             if n not in cost_so_far or new_cost < cost_so_far[n]:
                 cost_so_far[n] = new_cost
@@ -52,10 +61,15 @@ def find_path(board_map: Map, start: Coord, goal: Coord) -> Optional[Dict]:
     if goal not in came_from:
         return None
 
-    # reconstruct path
+    # reconstruct path (with cycle detection)
     path: List[Coord] = []
     cur = goal
+    seen = set()
     while cur is not None:
+        if cur in seen:
+            # cycle detected - abort
+            return None
+        seen.add(cur)
         path.append(cur)
         cur = came_from.get(cur)
     path.reverse()

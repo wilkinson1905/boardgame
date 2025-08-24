@@ -23,6 +23,10 @@ def path_cost(board_map: Map, path: List[Tuple[int, int]]) -> int:
             # treat unknown hex as high cost (impassable)
             cost += 9999
             continue
+        # frontline is impassable
+        if (q, r) == (0, 0):
+            cost += 9999
+            continue
         # interpret terrain/road
         if h.road_upgraded:
             cost += rules.UPGRADED_ROAD_COST
@@ -46,6 +50,9 @@ def move_truck(board_map: Map, truck: Truck, path: List[Tuple[int, int]]) -> boo
     if path:
         last_q, last_r = path[-1]
         h = board_map.get_hex(last_q, last_r)
+        # disallow entering frontline
+        if (last_q, last_r) == (0, 0):
+            return False
         if h and 'warehouse' in getattr(h, 'occupants', []):
             # trucks may not enter warehouse hexes
             return False
