@@ -210,6 +210,61 @@ def demo():
                         selected_truck = None
                         continue
 
+                    # check clicks inside right-side detail panel for load/unload buttons (G7)
+                    panel_x = SCREEN_W - 220
+                    panel_y = 60
+                    panel_w = 208
+                    panel_h = 200
+                    # button positions relative to panel
+                    load_rect = pygame.Rect(panel_x + 12, panel_y + panel_h - 56, 88, 28)
+                    unload_rect = pygame.Rect(panel_x + 108, panel_y + panel_h - 56, 88, 28)
+                    if load_rect.collidepoint(mx, my) and selected_truck:
+                        # perform load 1 soldier (same as keyboard L): from adjacent warehouse to truck
+                        owner = None
+                        for pid, p in players.items():
+                            if selected_truck in p.trucks:
+                                owner = p
+                                break
+                        if owner and owner.warehouses:
+                            t = owner.trucks[selected_truck]
+                            tq, tr = map(int, t.position.split(","))
+                            adj = False
+                            for wid, wh in owner.warehouses.items():
+                                wq, wr = map(int, wh.position.split(","))
+                                hex_obj = board_map.get_hex(wq, wr)
+                                if hex_obj:
+                                    neighs = board_map.neighbors(wq, wr)
+                                    for n in neighs:
+                                        if (n.q, n.r) == (tq, tr):
+                                            adj = True
+                                            break
+                                if adj:
+                                    break
+                            if adj and sum(t.cargo.values()) < t.capacity:
+                                for wid, wh in owner.warehouses.items():
+                                    if wh.stock.get("soldiers", 0) > 0:
+                                        wh.stock["soldiers"] -= 1
+                                        t.cargo["soldiers"] += 1
+                                        popup = "Loaded 1 soldier"
+                                        popup_until = pygame.time.get_ticks() + 1200
+                                        break
+                        continue
+                    if unload_rect.collidepoint(mx, my) and selected_truck:
+                        # perform unload 1 soldier (same as keyboard U): truck -> owner's soldiers pool
+                        owner = None
+                        for pid, p in players.items():
+                            if selected_truck in p.trucks:
+                                owner = p
+                                break
+                        if owner:
+                            t = owner.trucks[selected_truck]
+                            if t.cargo.get("soldiers", 0) > 0:
+                                t.cargo["soldiers"] -= 1
+                                owner.soldiers += 1
+                                popup = "Unloaded 1 soldier"
+                                popup_until = pygame.time.get_ticks() + 1200
+                        continue
+
                     # click: first try truck
                     tid = find_truck_at(players, ev.pos)
                     if tid:
@@ -374,6 +429,17 @@ def demo():
 
         # draw queued moves list
         draw_queued_moves(screen, board_map, engine)
+
+        # draw Load/Unload buttons in right-side panel (G7)
+        load_btn = pygame.Rect(panel_x + 12, panel_y + panel_h - 56, 88, 28)
+        unload_btn = pygame.Rect(panel_x + 108, panel_y + panel_h - 56, 88, 28)
+        pygame.draw.rect(screen, (70, 110, 70), load_btn)
+        pygame.draw.rect(screen, (110, 70, 70), unload_btn)
+        bfont = pygame.font.SysFont(None, 16)
+        ltxt = bfont.render("Load 1", True, (240, 240, 240))
+        utxt = bfont.render("Unload 1", True, (240, 240, 240))
+        screen.blit(ltxt, (load_btn.x + 10, load_btn.y + 6))
+        screen.blit(utxt, (unload_btn.x + 6, unload_btn.y + 6))
 
         # popup display
         if popup and pygame.time.get_ticks() < popup_until:
