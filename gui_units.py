@@ -39,23 +39,40 @@ def create_demo():
     p1 = PlayerState(id="p1", soldiers=rules.INITIAL_SOLDIERS, ammo=rules.INITIAL_AMMO, food=rules.INITIAL_FOOD)
     p2 = PlayerState(id="p2", soldiers=rules.INITIAL_SOLDIERS, ammo=rules.INITIAL_AMMO, food=rules.INITIAL_FOOD)
 
-    # create warehouses at map edges dynamically based on map extents
-    # determine q-range of the map
+    # create warehouses at top and bottom edges (one tile inward), centered horizontally
     qs = [q for (q, r) in m._hexes.keys()]
     rs = [r for (q, r) in m._hexes.keys()]
     min_q = min(qs)
     max_q = max(qs)
-    # pick representative r for the edge column (closest to 0)
-    def pick_edge_r(q_edge):
-        candidates = [h for (q, r), h in m._hexes.items() if q == q_edge]
-        if not candidates:
-            return 0
-        return min(candidates, key=lambda h: abs(h.r - 0)).r
+    min_r = min(rs)
+    max_r = max(rs)
 
-    w1_q = min_q
-    w1_r = pick_edge_r(w1_q)
-    w2_q = max_q
-    w2_r = pick_edge_r(w2_q)
+    # target rows: one tile inward from top and bottom
+    top_r = min_r + 1
+    bot_r = max_r - 1
+
+    # find candidate q values at those rows and pick the q closest to center (0)
+    top_candidates = [q for (q, r) in m._hexes.keys() if r == top_r]
+    bot_candidates = [q for (q, r) in m._hexes.keys() if r == bot_r]
+    print(top_candidates)
+    print(bot_candidates)
+    if top_candidates:
+        w1_q = top_candidates[int(len(top_candidates)/2)]
+        w1_r = top_r
+    else:
+        # fallback to leftmost top-most
+        w1_q = min_q
+        # pick r for that q closest to min_r
+        col = [h for (q, r), h in m._hexes.items() if q == w1_q]
+        w1_r = min(col, key=lambda h: abs(h.r - min_r)).r if col else min_r
+
+    if bot_candidates:
+        w2_q = bot_candidates[int(len(bot_candidates)/2)]
+        w2_r = bot_r
+    else:
+        w2_q = max_q
+        col = [h for (q, r), h in m._hexes.items() if q == w2_q]
+        w2_r = min(col, key=lambda h: abs(h.r - max_r)).r if col else max_r
 
     w1 = Warehouse(id="p1_wh", owner_id="p1", position=f"{w1_q},{w1_r}", stock={"soldiers": rules.INITIAL_SOLDIERS, "ammo": rules.INITIAL_AMMO, "food": rules.INITIAL_FOOD})
     w2 = Warehouse(id="p2_wh", owner_id="p2", position=f"{w2_q},{w2_r}", stock={"soldiers": rules.INITIAL_SOLDIERS, "ammo": rules.INITIAL_AMMO, "food": rules.INITIAL_FOOD})
@@ -83,20 +100,50 @@ def create_demo():
 
     # create trucks with some cargo values for display
     # for each warehouse pick the neighbor toward center and spawn trucks along that inward direction
+    # place trucks: for p1 (top) place on the row one inward from top, centered;
+    # for p2 (bottom) place on the row one inward from bottom, centered.
     for owner_id, wh in [("p1", w1), ("p2", w2)]:
         wq, wr = map(int, wh.position.split(","))
         wh_hex = m.get_hex(wq, wr)
-        spawn = spawn_neighbor_toward_center(wh_hex) if wh_hex else None
-        if spawn:
-            dx = spawn.q - wq
-            dr = spawn.r - wr
-        else:
-            # fallback: one hex inward along q axis
-            dx, dr = (1 if owner_id == "p1" else -1), 0
+        # target rows for trucks (one inward from warehouse rows)
+        top_truck_r = top_r - 1
+        bot_truck_r = bot_r + 1
 
-        for i in range(rules.TRUCK_COUNT):
-            pos_q = spawn.q + i * dx if spawn else (wq + dx + i * dx)
-            pos_r = spawn.r + i * dr if spawn else (wr + dr + i * dr)
+        target_r = top_truck_r if owner_id == "p1" else bot_truck_r
+
+        # gather available q values on that target row
+        q_on_row = sorted([q for (q, r) in m._hexes.keys() if r == target_r])
+        chosen_positions = []
+        if len(q_on_row) >= rules.TRUCK_COUNT:
+            mid = len(q_on_row) // 2
+            start = mid - (rules.TRUCK_COUNT // 2)
+            if start < 0:
+                start = 0
+            chosen_qs = q_on_row[start:start + rules.TRUCK_COUNT]
+            # if slice shorter, pad from left
+            if len(chosen_qs) < rules.TRUCK_COUNT:
+                # extend with nearby qs
+                need = rules.TRUCK_COUNT - len(chosen_qs)
+                extra = q_on_row[:need]
+                chosen_qs += extra
+            for qv in chosen_qs:
+                chosen_positions.append((qv, target_r))
+        else:
+            # fallback: try neighbor-based spawn as before
+            spawn_hex = None
+            if wh_hex:
+                neighs = m.neighbors(wh_hex.q, wh_hex.r)
+                if neighs:
+                    spawn_hex = min(neighs, key=lambda nh: (nh.q - center_q) ** 2 + (nh.r - center_r) ** 2)
+            if spawn_hex:
+                base_q, base_r = spawn_hex.q, spawn_hex.r
+            else:
+                base_q, base_r = (wq + (1 if owner_id == "p1" else -1), wr)
+            for i in range(rules.TRUCK_COUNT):
+                chosen_positions.append((base_q + i, base_r))
+
+        # create trucks at chosen positions
+        for i, (pos_q, pos_r) in enumerate(chosen_positions):
             if owner_id == "p1":
                 t = Truck(id=f"p1_t{i}", owner_id="p1", position=f"{pos_q},{pos_r}", capacity=rules.TRUCK_CAPACITY, remaining_mp=rules.MP_PER_TURN)
                 t.cargo["soldiers"] = 2 + i
