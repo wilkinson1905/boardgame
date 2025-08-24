@@ -10,7 +10,7 @@ except Exception:
 
 from gui_map import axial_to_pixel, hex_corners
 from board.map import Map
-from board.entities import PlayerState, Truck, Warehouse
+from board.entities import PlayerState, Truck, Warehouse, Frontline
 from board import rules
 
 
@@ -70,6 +70,15 @@ def create_demo():
     h2 = m.get_hex(w2_q, w2_r)
     if h2:
         h2.occupants.append('warehouse')
+
+    # create a Frontline object at central tile (0,0) and attach to map for easy access
+    fl = Frontline(id="frontline", owner_id="neutral", position="0,0", stock={"soldiers": 5, "ammo": 5, "food": 5})
+    # mark frontline tile occupant if present
+    center_hex = m.get_hex(0, 0)
+    if center_hex:
+        center_hex.occupants.append('frontline')
+    # attach to map so GUI and logic can find it
+    m.frontline = fl
 
     # --- truck placement: put trucks centered on rows just inward from warehouses ---
     center_q = (min(qs) + max(qs)) / 2

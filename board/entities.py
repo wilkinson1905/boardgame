@@ -19,6 +19,13 @@ class Warehouse:
     position: str = "0,0"
     stock: Dict[str, int] = field(default_factory=lambda: {"soldiers": 0, "ammo": 0, "food": 0})
 
+@dataclass
+class Frontline:
+    id: str
+    owner_id: str
+    position: str = "0,0"
+    stock: Dict[str, int] = field(default_factory=lambda: {"soldiers": 0, "ammo": 0, "food": 0})
+
 
 @dataclass
 class PlayerState:

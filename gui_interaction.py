@@ -150,26 +150,40 @@ def demo():
                         t = owner.trucks[selected_truck]
                         tq, tr = map(int, t.position.split(","))
                         adj = False
-                        for wid, wh in owner.warehouses.items():
-                            wq, wr = map(int, wh.position.split(","))
-                            # check adjacency via map.neighbors
-                            hex_obj = board_map.get_hex(wq, wr)
-                            if hex_obj:
-                                neighs = board_map.neighbors(wq, wr)
-                                for n in neighs:
-                                    if (n.q, n.r) == (tq, tr):
-                                        adj = True
-                                        break
-                            if adj:
-                                break
-                        if adj and sum(t.cargo.values()) < t.capacity and owner.warehouses:
-                            # transfer 1 soldier from warehouse stock if available
-                            # pick first warehouse with stock
-                            for wid, wh in owner.warehouses.items():
-                                if wh.stock.get("soldiers", 0) > 0:
-                                    wh.stock["soldiers"] -= 1
-                                    t.cargo["soldiers"] += 1
+                        # check adjacency to frontline first
+                        if hasattr(board_map, 'frontline') and board_map.frontline:
+                            # frontend position should be (0,0)
+                            fl_q, fl_r = 0, 0
+                            # check if truck is neighbor of frontline
+                            neighs = board_map.neighbors(fl_q, fl_r)
+                            for n in neighs:
+                                if (n.q, n.r) == (tq, tr):
+                                    adj = True
+                                    # perform load from frontline if available
+                                    if sum(t.cargo.values()) < t.capacity and board_map.frontline.stock.get("soldiers", 0) > 0:
+                                        board_map.frontline.stock["soldiers"] -= 1
+                                        t.cargo["soldiers"] += 1
                                     break
+                        # fallback: check owner's warehouses adjacency
+                        if not adj:
+                            for wid, wh in owner.warehouses.items():
+                                wq, wr = map(int, wh.position.split(","))
+                                hex_obj = board_map.get_hex(wq, wr)
+                                if hex_obj:
+                                    neighs = board_map.neighbors(wq, wr)
+                                    for n in neighs:
+                                        if (n.q, n.r) == (tq, tr):
+                                            adj = True
+                                            break
+                                if adj:
+                                    break
+                            if adj and sum(t.cargo.values()) < t.capacity and owner.warehouses:
+                                # transfer 1 soldier from warehouse stock if available
+                                for wid, wh in owner.warehouses.items():
+                                    if wh.stock.get("soldiers", 0) > 0:
+                                        wh.stock["soldiers"] -= 1
+                                        t.cargo["soldiers"] += 1
+                                        break
                 elif ev.key == pygame.K_u and selected_truck:
                     # unload 1 soldier from truck to player pool
                     owner = None
@@ -179,9 +193,23 @@ def demo():
                             break
                     if owner:
                         t = owner.trucks[selected_truck]
-                        if t.cargo.get("soldiers", 0) > 0:
-                            t.cargo["soldiers"] -= 1
-                            owner.soldiers += 1
+                        # if adjacent to frontline, unload to frontline stock; else unload to owner pool
+                        tq, tr = map(int, t.position.split(","))
+                        unloaded = False
+                        if hasattr(board_map, 'frontline') and board_map.frontline:
+                            neighs = board_map.neighbors(0, 0)
+                            for n in neighs:
+                                if (n.q, n.r) == (tq, tr):
+                                    # unload to frontline if truck has soldiers
+                                    if t.cargo.get("soldiers", 0) > 0:
+                                        t.cargo["soldiers"] -= 1
+                                        board_map.frontline.stock["soldiers"] = board_map.frontline.stock.get("soldiers", 0) + 1
+                                        unloaded = True
+                                    break
+                        if not unloaded:
+                            if t.cargo.get("soldiers", 0) > 0:
+                                t.cargo["soldiers"] -= 1
+                                owner.soldiers += 1
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 if ev.button == 1:
                     # check if End Phase button clicked (top-right)
@@ -219,7 +247,7 @@ def demo():
                     panel_x = SCREEN_W - 220
                     panel_y = 60
                     panel_w = 208
-                    panel_h = 200
+                    panel_h = 400
                     # button positions relative to panel
                     load_rect = pygame.Rect(panel_x + 12, panel_y + panel_h - 56, 88, 28)
                     unload_rect = pygame.Rect(panel_x + 108, panel_y + panel_h - 56, 88, 28)
@@ -230,32 +258,47 @@ def demo():
                             if selected_truck in p.trucks:
                                 owner = p
                                 break
-                        if owner and owner.warehouses:
+                        if owner:
                             t = owner.trucks[selected_truck]
                             tq, tr = map(int, t.position.split(","))
-                            adj = False
-                            for wid, wh in owner.warehouses.items():
-                                wq, wr = map(int, wh.position.split(","))
-                                hex_obj = board_map.get_hex(wq, wr)
-                                if hex_obj:
-                                    neighs = board_map.neighbors(wq, wr)
-                                    for n in neighs:
-                                        if (n.q, n.r) == (tq, tr):
-                                            adj = True
-                                            break
-                                if adj:
-                                    break
-                            if adj and sum(t.cargo.values()) < t.capacity:
-                                for wid, wh in owner.warehouses.items():
-                                    if wh.stock.get("soldiers", 0) > 0:
-                                        wh.stock["soldiers"] -= 1
-                                        t.cargo["soldiers"] += 1
-                                        popup = "Loaded 1 soldier"
-                                        popup_until = pygame.time.get_ticks() + 1200
+                            done = False
+                            # attempt frontline load first
+                            if hasattr(board_map, 'frontline') and board_map.frontline:
+                                neighs = board_map.neighbors(0, 0)
+                                for n in neighs:
+                                    if (n.q, n.r) == (tq, tr):
+                                        if sum(t.cargo.values()) < t.capacity and board_map.frontline.stock.get("soldiers", 0) > 0:
+                                            board_map.frontline.stock["soldiers"] -= 1
+                                            t.cargo["soldiers"] += 1
+                                            popup = "Loaded 1 soldier from frontline"
+                                            popup_until = pygame.time.get_ticks() + 1200
+                                            done = True
                                         break
+                            # fallback: warehouses
+                            if not done and owner.warehouses:
+                                adj = False
+                                for wid, wh in owner.warehouses.items():
+                                    wq, wr = map(int, wh.position.split(","))
+                                    hex_obj = board_map.get_hex(wq, wr)
+                                    if hex_obj:
+                                        neighs = board_map.neighbors(wq, wr)
+                                        for n in neighs:
+                                            if (n.q, n.r) == (tq, tr):
+                                                adj = True
+                                                break
+                                    if adj:
+                                        break
+                                if adj and sum(t.cargo.values()) < t.capacity:
+                                    for wid, wh in owner.warehouses.items():
+                                        if wh.stock.get("soldiers", 0) > 0:
+                                            wh.stock["soldiers"] -= 1
+                                            t.cargo["soldiers"] += 1
+                                            popup = "Loaded 1 soldier from warehouse"
+                                            popup_until = pygame.time.get_ticks() + 1200
+                                            break
                         continue
                     if unload_rect.collidepoint(mx, my) and selected_truck:
-                        # perform unload 1 soldier (same as keyboard U): truck -> owner's soldiers pool
+                        # perform unload 1 soldier (same as keyboard U): truck -> frontline if adjacent, else owner pool
                         owner = None
                         for pid, p in players.items():
                             if selected_truck in p.trucks:
@@ -263,11 +306,25 @@ def demo():
                                 break
                         if owner:
                             t = owner.trucks[selected_truck]
-                            if t.cargo.get("soldiers", 0) > 0:
-                                t.cargo["soldiers"] -= 1
-                                owner.soldiers += 1
-                                popup = "Unloaded 1 soldier"
-                                popup_until = pygame.time.get_ticks() + 1200
+                            tq, tr = map(int, t.position.split(","))
+                            done = False
+                            if hasattr(board_map, 'frontline') and board_map.frontline:
+                                neighs = board_map.neighbors(0, 0)
+                                for n in neighs:
+                                    if (n.q, n.r) == (tq, tr):
+                                        if t.cargo.get("soldiers", 0) > 0:
+                                            t.cargo["soldiers"] -= 1
+                                            board_map.frontline.stock["soldiers"] = board_map.frontline.stock.get("soldiers", 0) + 1
+                                            popup = "Unloaded 1 soldier to frontline"
+                                            popup_until = pygame.time.get_ticks() + 1200
+                                            done = True
+                                        break
+                            if not done:
+                                if t.cargo.get("soldiers", 0) > 0:
+                                    t.cargo["soldiers"] -= 1
+                                    owner.soldiers += 1
+                                    popup = "Unloaded 1 soldier"
+                                    popup_until = pygame.time.get_ticks() + 1200
                         continue
 
                     # click: first try truck
@@ -394,7 +451,7 @@ def demo():
         panel_x = SCREEN_W - 220
         panel_y = 60
         panel_w = 208
-        panel_h = 200
+        panel_h = 400
         pygame.draw.rect(screen, (22, 22, 30), (panel_x, panel_y, panel_w, panel_h))
         pygame.draw.rect(screen, (60, 60, 70), (panel_x, panel_y, panel_w, panel_h), 2)
         font = pygame.font.SysFont(None, 18)

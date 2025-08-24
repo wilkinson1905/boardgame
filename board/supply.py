@@ -1,5 +1,5 @@
 from typing import Dict
-from .entities import Truck, Warehouse
+from .entities import Truck, Warehouse, Frontline
 
 
 def cargo_total(cargo: Dict[str, int]) -> int:
@@ -36,3 +36,35 @@ def unload_to_warehouse(truck: Truck, warehouse: Warehouse, resource: str, amoun
 
     truck.cargo[resource] = truck.cargo.get(resource, 0) - amount
     warehouse.stock[resource] = warehouse.stock.get(resource, 0) + amount
+
+
+def load_from_frontline(frontline: Frontline, truck: Truck, resource: str, amount: int) -> None:
+    """Load `amount` of resource from frontline onto truck.
+
+    Raises ValueError on insufficient stock or capacity overflow.
+    """
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    if frontline.stock.get(resource, 0) < amount:
+        raise ValueError("frontline does not have enough resource")
+
+    current_total = cargo_total(truck.cargo)
+    if current_total + amount > truck.capacity:
+        raise ValueError("loading would exceed truck capacity")
+
+    frontline.stock[resource] = frontline.stock.get(resource, 0) - amount
+    truck.cargo[resource] = truck.cargo.get(resource, 0) + amount
+
+
+def unload_to_frontline(truck: Truck, frontline: Frontline, resource: str, amount: int) -> None:
+    """Unload `amount` of resource from truck into frontline.
+
+    Raises ValueError on insufficient cargo.
+    """
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    if truck.cargo.get(resource, 0) < amount:
+        raise ValueError("truck does not have enough resource to unload")
+
+    truck.cargo[resource] = truck.cargo.get(resource, 0) - amount
+    frontline.stock[resource] = frontline.stock.get(resource, 0) + amount
