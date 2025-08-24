@@ -14,15 +14,17 @@ from board.game_engine import GameEngine
 from board.pathfinding import find_path
 from board import rules
 
-SCREEN_W = 900
-SCREEN_H = 520
+SCREEN_W = 1200
+SCREEN_H = 800
 BG = (18, 18, 26)
+# map origin (shifted left to avoid side panel overlap)
+MAP_ORIGIN = (SCREEN_W // 2 - 10, SCREEN_H // 2 - 20)
 
 
 def hex_at_pos(board_map, pos):
     x, y = pos
     for (q, r), h in board_map._hexes.items():
-        cx, cy = axial_to_pixel(q, r)
+        cx, cy = axial_to_pixel(q, r, origin=MAP_ORIGIN)
         # use radius approx
         if (x - cx) ** 2 + (y - cy) ** 2 <= (24) ** 2:
             return (q, r)
@@ -66,7 +68,7 @@ def animate_moves(screen, clock, board_map, players, engine):
             screen.fill(BG)
             # draw map
             for (q, r), h in board_map._hexes.items():
-                cx, cy = axial_to_pixel(q, r)
+                cx, cy = axial_to_pixel(q, r, origin=MAP_ORIGIN)
                 corners = hex_corners(cx, cy)
                 color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
                 pygame.draw.polygon(screen, color, corners)
@@ -74,7 +76,7 @@ def animate_moves(screen, clock, board_map, players, engine):
 
             # draw trucks
             from gui_units import draw_trucks
-            draw_trucks(screen, players, selected_id=None)
+            draw_trucks(screen, players, selected_id=None, origin=MAP_ORIGIN)
 
             pygame.display.flip()
             # wait small delay
@@ -266,7 +268,7 @@ def demo():
                         continue
 
                     # click: first try truck
-                    tid = find_truck_at(players, ev.pos)
+                    tid = find_truck_at(players, ev.pos, origin=MAP_ORIGIN)
                     if tid:
                         # determine owner
                         owner = None
@@ -316,7 +318,7 @@ def demo():
         screen.fill(BG)
         # draw map
         for (q, r), h in board_map._hexes.items():
-            cx, cy = axial_to_pixel(q, r)
+            cx, cy = axial_to_pixel(q, r, origin=MAP_ORIGIN)
             corners = hex_corners(cx, cy)
             color = (150, 150, 150) if h.road_upgraded else (70, 70, 80)
             pygame.draw.polygon(screen, color, corners)
@@ -329,7 +331,7 @@ def demo():
                     wq, wr = map(int, wh.position.split(","))
                 except Exception:
                     continue
-                wx, wy = axial_to_pixel(wq, wr)
+                wx, wy = axial_to_pixel(wq, wr, origin=MAP_ORIGIN)
                 col = OWNER_COLORS.get(pid, (180, 180, 180))
                 # small house marker
                 pygame.draw.rect(screen, col, (wx - 10, wy - 10, 20, 20))
@@ -342,7 +344,7 @@ def demo():
         # highlight hover hex
         if hover_hex:
             hx, hy = hover_hex
-            cx, cy = axial_to_pixel(hx, hy)
+            cx, cy = axial_to_pixel(hx, hy, origin=MAP_ORIGIN)
             pygame.draw.circle(screen, (200, 200, 100), (cx, cy), 6)
 
             # if a truck is selected, show path preview and cost
@@ -363,7 +365,7 @@ def demo():
                         cost = res["cost"]
                         # draw path
                         for node in path:
-                            nx, ny = axial_to_pixel(node[0], node[1])
+                            nx, ny = axial_to_pixel(node[0], node[1], origin=MAP_ORIGIN)
                             pygame.draw.circle(screen, (160, 220, 160), (nx, ny), 6)
                         # color cost based on MP available
                         mp = rules.MP_PER_TURN
@@ -374,7 +376,7 @@ def demo():
 
         # draw trucks
         from gui_units import draw_trucks
-        draw_trucks(screen, players, selected_id=selected_truck)
+        draw_trucks(screen, players, selected_id=selected_truck, origin=MAP_ORIGIN)
 
         # Right-side detail panel for selected unit (G7)
         panel_x = SCREEN_W - 220

@@ -24,8 +24,16 @@ OWNER_COLORS = {"p1": (200, 80, 80), "p2": (80, 120, 200)}
 
 def create_demo():
     m = Map()
-    for q in range(-6, 7):
-        for r in range(-2, 3):
+    # create a rectangular axial grid (cols x rows), centered around (0,0)
+    cols = 13
+    rows = 15
+    half_cols = cols // 2
+    half_rows = rows // 2
+    for row in range(rows):
+        for col in range(cols):
+            # convert even-r offset (col,row) to axial (q,r) for pointy-top layout
+            q = col - half_cols - (row // 2)
+            r = row - half_rows
             m.add_hex(q, r)
 
     p1 = PlayerState(id="p1", soldiers=rules.INITIAL_SOLDIERS, ammo=rules.INITIAL_AMMO, food=rules.INITIAL_FOOD)
@@ -103,13 +111,13 @@ def create_demo():
     return m, {"p1": p1, "p2": p2}
 
 
-def draw_trucks(surface, players, selected_id=None):
+def draw_trucks(surface, players, selected_id=None, origin=(400, 200)):
     font = pygame.font.SysFont(None, 16)
     for pid, p in players.items():
         color = OWNER_COLORS.get(pid, (190, 190, 190))
         for tid, t in p.trucks.items():
             q, r = map(int, t.position.split(","))
-            x, y = axial_to_pixel(q, r)
+            x, y = axial_to_pixel(q, r, origin=origin)
             # draw truck body
             rect = pygame.Rect(x - 10, y - 10, 20, 20)
             pygame.draw.rect(surface, color, rect)
@@ -121,12 +129,12 @@ def draw_trucks(surface, players, selected_id=None):
             surface.blit(txt, (x - txt.get_width() // 2, y - txt.get_height() // 2))
 
 
-def find_truck_at(players, pos):
+def find_truck_at(players, pos, origin=(400, 200)):
     x, y = pos
     for pid, p in players.items():
         for tid, t in p.trucks.items():
             tq, tr = map(int, t.position.split(","))
-            tx, ty = axial_to_pixel(tq, tr)
+            tx, ty = axial_to_pixel(tq, tr, origin=origin)
             if (x - tx) ** 2 + (y - ty) ** 2 <= 16 ** 2:
                 return tid
     return None
