@@ -3,12 +3,10 @@
 Run: python gui_base.py
 This opens a window and exits on ESC or window close.
 """
-import sys
 try:
     import pygame
-except Exception as e:
-    print("pygame not installed. Install with: pip install pygame")
-    raise
+except Exception:
+    raise ImportError("pygame not installed. Install with: pip install pygame")
 
 
 def main():

@@ -278,10 +278,12 @@ def demo():
                                 break
                         # allow selection only during movement phases for current player
                         if phase in phase_player and owner != phase_player[phase]:
-                            # not this player's movement phase
-                            print(f"Not {owner}'s movement phase; cannot select {tid}")
+                            # not this player's movement phase -> show popup
+                            popup = f"Not {owner}'s movement phase"
+                            popup_until = pygame.time.get_ticks() + 1200
                         elif tid in engine.moved_this_round:
-                            print(f"Truck {tid} already moved this round; cannot select")
+                            popup = f"Truck {tid} already moved this round"
+                            popup_until = pygame.time.get_ticks() + 1200
                         else:
                             selected_truck = tid
                     else:
@@ -300,18 +302,21 @@ def demo():
                                 start = tuple(map(int, truck_pos.split(",")))
                                 res = find_path(board_map, start, hx)
                                 if res is None:
-                                    print(f"No path found from {start} to {hx}; move not queued")
+                                    popup = f"No path found from {start} to {hx}"
+                                    popup_until = pygame.time.get_ticks() + 1200
                                 else:
                                     cost = res["cost"]
                                     if cost > rules.MP_PER_TURN:
-                                        print(f"Path cost {cost} exceeds MP ({rules.MP_PER_TURN}); move not queued")
+                                        popup = f"Path cost {cost} exceeds MP ({rules.MP_PER_TURN})"
+                                        popup_until = pygame.time.get_ticks() + 1200
                                     else:
                                         ok = engine.queue_move(owner, selected_truck, [hx])
                                         if ok:
                                             # move succeeded — clear selection so user can't reissue on same truck
                                             selected_truck = None
                                         else:
-                                            print(f"Move failed for {selected_truck}")
+                                            popup = f"Move failed for {selected_truck}"
+                                            popup_until = pygame.time.get_ticks() + 1200
             elif ev.type == pygame.MOUSEMOTION:
                 hover_hex = hex_at_pos(board_map, ev.pos)
 

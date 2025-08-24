@@ -8,8 +8,7 @@ import sys
 try:
     import pygame
 except Exception:
-    print("pygame is required. Install with: pip install pygame")
-    raise
+    raise ImportError("pygame is required. Install with: pip install pygame")
 
 from board.map import Map
 
